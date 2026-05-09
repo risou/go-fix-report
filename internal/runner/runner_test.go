@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 )
@@ -124,9 +125,18 @@ func TestExecExecutorNonProcessFailureUsesMinusOne(t *testing.T) {
 }
 
 func TestExecExecutorCapturesProcessExitCode(t *testing.T) {
-	exec := ExecExecutor{}
+	if hasArg(os.Args[1:], "--helper-exit-7") {
+		os.Exit(7)
+	}
 
-	got := exec.Run(context.Background(), t.TempDir(), "sh", "-c", "exit 7")
+	exec := ExecExecutor{}
+	args := []string{
+		"-test.run=TestExecExecutorCapturesProcessExitCode",
+		"--",
+		"--helper-exit-7",
+	}
+
+	got := exec.Run(context.Background(), t.TempDir(), os.Args[0], args...)
 
 	if got.Err == nil {
 		t.Fatalf("err = nil, want non-nil")
@@ -134,4 +144,13 @@ func TestExecExecutorCapturesProcessExitCode(t *testing.T) {
 	if got.ExitCode != 7 {
 		t.Fatalf("exitCode = %d, want 7", got.ExitCode)
 	}
+}
+
+func hasArg(args []string, target string) bool {
+	for _, arg := range args {
+		if arg == target {
+			return true
+		}
+	}
+	return false
 }
