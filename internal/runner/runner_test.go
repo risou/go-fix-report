@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -92,5 +93,45 @@ func TestRunFixJSONCapturesFailure(t *testing.T) {
 	}
 	if string(got.Stderr) != "failed" {
 		t.Fatalf("stderr = %q, want %q", string(got.Stderr), "failed")
+	}
+}
+
+func TestCommandStringMatchesInvocation(t *testing.T) {
+	fake := &fakeExecutor{}
+	r := Runner{Executor: fake}
+	moduleRoot := "/tmp/module-root"
+
+	r.RunFixJSON(context.Background(), moduleRoot)
+
+	got := CommandString()
+	want := fake.gotName + " " + strings.Join(fake.gotArgs, " ")
+	if got != want {
+		t.Fatalf("CommandString() = %q, want %q", got, want)
+	}
+}
+
+func TestExecExecutorNonProcessFailureUsesMinusOne(t *testing.T) {
+	exec := ExecExecutor{}
+
+	got := exec.Run(context.Background(), t.TempDir(), "command-that-does-not-exist-12345")
+
+	if got.Err == nil {
+		t.Fatalf("err = nil, want non-nil")
+	}
+	if got.ExitCode != -1 {
+		t.Fatalf("exitCode = %d, want -1", got.ExitCode)
+	}
+}
+
+func TestExecExecutorCapturesProcessExitCode(t *testing.T) {
+	exec := ExecExecutor{}
+
+	got := exec.Run(context.Background(), t.TempDir(), "sh", "-c", "exit 7")
+
+	if got.Err == nil {
+		t.Fatalf("err = nil, want non-nil")
+	}
+	if got.ExitCode != 7 {
+		t.Fatalf("exitCode = %d, want 7", got.ExitCode)
 	}
 }

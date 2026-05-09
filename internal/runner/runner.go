@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"strings"
 )
 
 type Result struct {
@@ -32,7 +33,7 @@ func (e ExecExecutor) Run(ctx context.Context, dir string, name string, args ...
 	err := cmd.Run()
 	exitCode := 0
 	if err != nil {
-		exitCode = 1
+		exitCode = -1
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
@@ -56,9 +57,15 @@ func (r Runner) RunFixJSON(ctx context.Context, moduleRoot string) Result {
 	if executor == nil {
 		executor = ExecExecutor{}
 	}
-	return executor.Run(ctx, moduleRoot, "go", "fix", "-json", "./...")
+	name, args := fixJSONCommand()
+	return executor.Run(ctx, moduleRoot, name, args...)
 }
 
 func CommandString() string {
-	return "go fix -json ./..."
+	name, args := fixJSONCommand()
+	return name + " " + strings.Join(args, " ")
+}
+
+func fixJSONCommand() (string, []string) {
+	return "go", []string{"fix", "-json", "./..."}
 }
