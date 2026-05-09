@@ -51,6 +51,12 @@ type RunError struct {
 	Stderr   string `json:"stderr"`
 }
 
+type AnalyzerError struct {
+	PackageID string `json:"package_id"`
+	Analyzer  string `json:"analyzer"`
+	Error     string `json:"error"`
+}
+
 type Result struct {
 	Modules []ModuleResult `json:"modules"`
 	Repos   []RepoResult   `json:"repos"`
