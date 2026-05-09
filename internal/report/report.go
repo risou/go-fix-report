@@ -1,6 +1,10 @@
 package report
 
-import "sort"
+import (
+	"sort"
+	"strconv"
+	"strings"
+)
 
 type TextEdit struct {
 	Filename string `json:"filename"`
@@ -68,4 +72,94 @@ func sortCounts(counts []Count) {
 	sort.Slice(counts, func(i, j int) bool {
 		return counts[i].Analyzer < counts[j].Analyzer
 	})
+}
+
+func BuildModuleCounts(diags []Diagnostic) []Count {
+	countByAnalyzer := map[string]*Count{}
+	for _, d := range diags {
+		c, ok := countByAnalyzer[d.Analyzer]
+		if !ok {
+			c = &Count{Analyzer: d.Analyzer}
+			countByAnalyzer[d.Analyzer] = c
+		}
+		c.Diagnostics++
+		if len(d.SuggestedFixes) > 0 {
+			c.Fixable++
+		}
+	}
+	return collectCounts(countByAnalyzer)
+}
+
+func BuildRepoCounts(modules []ModuleResult) []Count {
+	return buildDeduplicatedCounts(modules)
+}
+
+func BuildTotalCounts(repos []ModuleResult) []Count {
+	return buildDeduplicatedCounts(repos)
+}
+
+func buildDeduplicatedCounts(modules []ModuleResult) []Count {
+	countByAnalyzer := map[string]*Count{}
+	seen := map[string]struct{}{}
+
+	for _, m := range modules {
+		for _, d := range m.Diagnostics {
+			c, ok := countByAnalyzer[d.Analyzer]
+			if !ok {
+				c = &Count{Analyzer: d.Analyzer}
+				countByAnalyzer[d.Analyzer] = c
+			}
+
+			fp := Fingerprint(d)
+			if _, ok := seen[fp]; ok {
+				c.DuplicatesRemoved++
+				continue
+			}
+			seen[fp] = struct{}{}
+
+			c.Diagnostics++
+			if len(d.SuggestedFixes) > 0 {
+				c.Fixable++
+			}
+		}
+	}
+
+	return collectCounts(countByAnalyzer)
+}
+
+func collectCounts(countByAnalyzer map[string]*Count) []Count {
+	counts := make([]Count, 0, len(countByAnalyzer))
+	for _, c := range countByAnalyzer {
+		counts = append(counts, *c)
+	}
+	sortCounts(counts)
+	return counts
+}
+
+func Fingerprint(diag Diagnostic) string {
+	var b strings.Builder
+	writeField(&b, diag.RepoAbsPath)
+	writeField(&b, diag.Analyzer)
+	writeField(&b, diag.Posn)
+	writeField(&b, diag.End)
+	writeField(&b, diag.Message)
+	writeField(&b, strconv.Itoa(len(diag.SuggestedFixes)))
+	for _, fix := range diag.SuggestedFixes {
+		writeField(&b, fix.Message)
+		writeField(&b, strconv.Itoa(len(fix.Edits)))
+		for _, edit := range fix.Edits {
+			writeField(&b, edit.Filename)
+			writeField(&b, strconv.Itoa(edit.Start))
+			writeField(&b, strconv.Itoa(edit.End))
+			writeField(&b, edit.New)
+		}
+	}
+	return b.String()
+}
+
+func writeField(b *strings.Builder, s string) {
+	b.WriteString(strconv.Itoa(len(s)))
+	b.WriteByte(':')
+	b.WriteString(s)
+	b.WriteByte('|')
 }
