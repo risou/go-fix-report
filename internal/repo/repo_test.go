@@ -107,6 +107,30 @@ func TestDiscoverOutsideRepoWithGitDirectoryDoesNotIncludeNestedRepo(t *testing.
 	})
 }
 
+func TestDiscoverOutsideRepoSkipsVendorRepo(t *testing.T) {
+	base := t.TempDir()
+	initGit(t, filepath.Join(base, "vendor"))
+
+	repositories, err := Discover(base)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+
+	assertRepositories(t, repositories, nil)
+}
+
+func TestDiscoverOutsideRepoSkipsRepoUnderNodeModules(t *testing.T) {
+	base := t.TempDir()
+	initGit(t, filepath.Join(base, "node_modules", "pkg"))
+
+	repositories, err := Discover(base)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+
+	assertRepositories(t, repositories, nil)
+}
+
 func TestDiscoverInsideRepoDoesNotIncludeNestedRepo(t *testing.T) {
 	root := t.TempDir()
 	initGit(t, root)

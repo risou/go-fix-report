@@ -75,6 +75,9 @@ func childRepositories(path string) ([]Repository, error) {
 
 		name := entry.Name()
 		if entry.IsDir() {
+			if isExcludedDirectory(name) {
+				return filepath.SkipDir
+			}
 			if ok, err := isGitMarker(filepath.Join(current, ".git")); err != nil {
 				return err
 			} else if ok {
@@ -85,9 +88,6 @@ func childRepositories(path string) ([]Repository, error) {
 		if !entry.IsDir() {
 			return nil
 		}
-		if name == "vendor" || name == "node_modules" {
-			return filepath.SkipDir
-		}
 
 		return nil
 	})
@@ -96,6 +96,10 @@ func childRepositories(path string) ([]Repository, error) {
 	}
 
 	return repositories, nil
+}
+
+func isExcludedDirectory(name string) bool {
+	return name == ".git" || name == "vendor" || name == "node_modules"
 }
 
 func isGitMarker(path string) (bool, error) {
