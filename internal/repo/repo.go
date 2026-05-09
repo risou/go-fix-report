@@ -51,10 +51,10 @@ func containingRepository(path string) (string, bool, error) {
 	}
 
 	for {
-		if info, err := os.Stat(filepath.Join(current, ".git")); err == nil && info.IsDir() {
-			return current, true, nil
-		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		if ok, err := isGitMarker(filepath.Join(current, ".git")); err != nil {
 			return "", false, err
+		} else if ok {
+			return current, true, nil
 		}
 
 		parent := filepath.Dir(current)
@@ -72,14 +72,18 @@ func childRepositories(path string) ([]Repository, error) {
 		if err != nil {
 			return err
 		}
-		if !entry.IsDir() {
-			return nil
-		}
 
 		name := entry.Name()
 		if name == ".git" {
-			repositories = append(repositories, newRepository(filepath.Dir(current)))
-			return filepath.SkipDir
+			if ok, err := isGitMarker(current); err != nil {
+				return err
+			} else if ok {
+				repositories = append(repositories, newRepository(filepath.Dir(current)))
+				return filepath.SkipDir
+			}
+		}
+		if !entry.IsDir() {
+			return nil
 		}
 		if name == "vendor" || name == "node_modules" {
 			return filepath.SkipDir
@@ -92,6 +96,18 @@ func childRepositories(path string) ([]Repository, error) {
 	}
 
 	return repositories, nil
+}
+
+func isGitMarker(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return info.IsDir() || info.Mode().IsRegular(), nil
 }
 
 func newRepository(root string) Repository {

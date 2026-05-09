@@ -48,6 +48,48 @@ func TestDiscoverOutsideRepoFindsChildRepos(t *testing.T) {
 	})
 }
 
+func TestDiscoverOutsideRepoFindsChildRepoWithGitFile(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "worktree")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatalf("mkdir repo root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, ".git"), []byte("gitdir: ../.git/worktrees/worktree\n"), 0o644); err != nil {
+		t.Fatalf("write .git file: %v", err)
+	}
+
+	repositories, err := Discover(base)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+
+	assertRepositories(t, repositories, []Repository{
+		{Root: repoRoot, Name: "worktree"},
+	})
+}
+
+func TestDiscoverOutsideRepoWithGitFileDoesNotIncludeNestedRepo(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "worktree")
+	nested := filepath.Join(repoRoot, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested repo: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, ".git"), []byte("gitdir: ../.git/worktrees/worktree\n"), 0o644); err != nil {
+		t.Fatalf("write .git file: %v", err)
+	}
+	initGit(t, nested)
+
+	repositories, err := Discover(base)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+
+	assertRepositories(t, repositories, []Repository{
+		{Root: repoRoot, Name: "worktree"},
+	})
+}
+
 func TestDiscoverInsideRepoDoesNotIncludeNestedRepo(t *testing.T) {
 	root := t.TempDir()
 	initGit(t, root)
