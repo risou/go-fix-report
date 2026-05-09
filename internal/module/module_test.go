@@ -40,6 +40,36 @@ func TestDiscoverModulesSkipsExcludedDirectories(t *testing.T) {
 	})
 }
 
+func TestDiscoverModulesFindsRootNamedVendor(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "vendor")
+	writeGoMod(t, repoRoot)
+
+	modules, err := Discover(repoRoot)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+
+	assertModules(t, modules, []Module{
+		{Root: repoRoot, Display: "."},
+	})
+}
+
+func TestDiscoverModulesFindsRootNamedNodeModules(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "node_modules")
+	writeGoMod(t, repoRoot)
+
+	modules, err := Discover(repoRoot)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+
+	assertModules(t, modules, []Module{
+		{Root: repoRoot, Display: "."},
+	})
+}
+
 func TestDiscoverModulesReturnsEmptyWhenNoGoMod(t *testing.T) {
 	repoRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(repoRoot, "tools", "report"), 0o755); err != nil {

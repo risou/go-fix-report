@@ -13,11 +13,12 @@ type Module struct {
 
 func Discover(repoRoot string) ([]Module, error) {
 	var modules []Module
+	repoRoot = filepath.Clean(repoRoot)
 	err := filepath.WalkDir(repoRoot, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
+		if d.IsDir() && path != repoRoot {
 			switch d.Name() {
 			case ".git", "vendor", "node_modules":
 				return filepath.SkipDir
