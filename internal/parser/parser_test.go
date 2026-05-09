@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -118,5 +120,41 @@ func TestParseEmptyOutput(t *testing.T) {
 	}
 	if got := len(result.Errors); got != 0 {
 		t.Fatalf("len(result.Errors) = %d, want 0", got)
+	}
+}
+
+func TestParseUnexpectedAnalyzerObjectShape(t *testing.T) {
+	stdout := []byte(`{
+  "example.com/x": {
+    "any": {
+      "foo": "bar"
+    }
+  }
+}`)
+
+	_, err := Parse(stdout)
+	if err == nil {
+		t.Fatal("Parse returned nil error, want unmarshal error")
+	}
+	var unmarshalTypeErr *json.UnmarshalTypeError
+	if !errors.As(err, &unmarshalTypeErr) {
+		t.Fatalf("Parse error type = %T, want *json.UnmarshalTypeError", err)
+	}
+}
+
+func TestParseUnexpectedAnalyzerScalarValue(t *testing.T) {
+	stdout := []byte(`{
+  "example.com/x": {
+    "any": 123
+  }
+}`)
+
+	_, err := Parse(stdout)
+	if err == nil {
+		t.Fatal("Parse returned nil error, want unmarshal error")
+	}
+	var unmarshalTypeErr *json.UnmarshalTypeError
+	if !errors.As(err, &unmarshalTypeErr) {
+		t.Fatalf("Parse error type = %T, want *json.UnmarshalTypeError", err)
 	}
 }

@@ -3,7 +3,6 @@ package parser
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 
 	"github.com/risou/go-fix-report/internal/report"
 )
@@ -27,7 +26,8 @@ func Parse(stdout []byte) (Result, error) {
 	for packageID, analyzers := range packages {
 		for analyzer, raw := range analyzers {
 			var diagnostics []report.Diagnostic
-			if err := json.Unmarshal(raw, &diagnostics); err == nil {
+			diagErr := json.Unmarshal(raw, &diagnostics)
+			if diagErr == nil {
 				for i := range diagnostics {
 					diagnostics[i].PackageID = packageID
 					diagnostics[i].Analyzer = analyzer
@@ -48,7 +48,7 @@ func Parse(stdout []byte) (Result, error) {
 				continue
 			}
 
-			return Result{}, fmt.Errorf("unexpected analyzer value for package %q analyzer %q", packageID, analyzer)
+			return Result{}, diagErr
 		}
 	}
 
