@@ -90,6 +90,23 @@ func TestDiscoverOutsideRepoWithGitFileDoesNotIncludeNestedRepo(t *testing.T) {
 	})
 }
 
+func TestDiscoverOutsideRepoWithGitDirectoryDoesNotIncludeNestedRepo(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "repo")
+	nested := filepath.Join(repoRoot, "nested")
+	initGit(t, repoRoot)
+	initGit(t, nested)
+
+	repositories, err := Discover(base)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+
+	assertRepositories(t, repositories, []Repository{
+		{Root: repoRoot, Name: "repo"},
+	})
+}
+
 func TestDiscoverInsideRepoDoesNotIncludeNestedRepo(t *testing.T) {
 	root := t.TempDir()
 	initGit(t, root)

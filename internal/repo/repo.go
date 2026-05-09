@@ -74,11 +74,11 @@ func childRepositories(path string) ([]Repository, error) {
 		}
 
 		name := entry.Name()
-		if name == ".git" {
-			if ok, err := isGitMarker(current); err != nil {
+		if entry.IsDir() {
+			if ok, err := isGitMarker(filepath.Join(current, ".git")); err != nil {
 				return err
 			} else if ok {
-				repositories = append(repositories, newRepository(filepath.Dir(current)))
+				repositories = append(repositories, newRepository(current))
 				return filepath.SkipDir
 			}
 		}
