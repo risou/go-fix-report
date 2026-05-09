@@ -2,6 +2,8 @@ package output
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -94,3 +96,50 @@ func TestWriteTableIncludesErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteTablePropagatesWriterErrors(t *testing.T) {
+	expected := errors.New("write failed")
+	w := &failWriter{err: expected}
+
+	err := WriteTable(w, report.Result{})
+	if !errors.Is(err, expected) {
+		t.Fatalf("expected writer error, got: %v", err)
+	}
+}
+
+func TestWriteTableSanitizesErrorStderr(t *testing.T) {
+	result := report.Result{
+		Errors: []report.RunError{
+			{
+				Repo:     "repo-a",
+				Module:   "./module-a",
+				Command:  "go test ./...",
+				ExitCode: 1,
+				Stderr:   "line1\tfield\r\nline2\nline3",
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := WriteTable(&buf, result); err != nil {
+		t.Fatalf("WriteTable returned error: %v", err)
+	}
+
+	got := buf.String()
+	if strings.Contains(got, "\tfield\r\n") || strings.Contains(got, "line2\nline3") {
+		t.Fatalf("stderr was not sanitized:\n%s", got)
+	}
+	if !strings.Contains(got, "line1 field line2 line3") {
+		t.Fatalf("sanitized stderr not found:\n%s", got)
+	}
+}
+
+type failWriter struct {
+	err error
+}
+
+func (w *failWriter) Write([]byte) (int, error) {
+	return 0, w.err
+}
+
+var _ io.Writer = (*failWriter)(nil)
