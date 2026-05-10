@@ -110,7 +110,7 @@ func buildDeduplicatedCounts(modules []ModuleResult) []Count {
 				countByAnalyzer[d.Analyzer] = c
 			}
 
-			fp := Fingerprint(d)
+			fp := moduleFingerprint(m.Module, d)
 			if _, ok := seen[fp]; ok {
 				c.DuplicatesRemoved++
 				continue
@@ -137,8 +137,14 @@ func collectCounts(countByAnalyzer map[string]*Count) []Count {
 }
 
 func Fingerprint(diag Diagnostic) string {
+	return moduleFingerprint("", diag)
+}
+
+func moduleFingerprint(module string, diag Diagnostic) string {
 	var b strings.Builder
 	writeField(&b, diag.RepoAbsPath)
+	writeField(&b, module)
+	writeField(&b, diag.PackageID)
 	writeField(&b, diag.Analyzer)
 	writeField(&b, diag.Posn)
 	writeField(&b, diag.End)

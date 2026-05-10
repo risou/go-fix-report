@@ -68,7 +68,7 @@ func TestBuildRepoTotalsDeduplicatesDiagnostics(t *testing.T) {
 
 	modules := []ModuleResult{
 		{Repo: "repo", Module: "m1", Diagnostics: []Diagnostic{dup, uniqB}},
-		{Repo: "repo", Module: "m2", Diagnostics: []Diagnostic{dup, uniqA}},
+		{Repo: "repo", Module: "m1", Diagnostics: []Diagnostic{dup, uniqA}},
 	}
 	got := BuildRepoCounts(modules)
 	if len(got) != 2 {
@@ -80,6 +80,60 @@ func TestBuildRepoTotalsDeduplicatesDiagnostics(t *testing.T) {
 	}
 	if got[1].Analyzer != "b" || got[1].Diagnostics != 1 || got[1].Fixable != 0 || got[1].DuplicatesRemoved != 0 {
 		t.Fatalf("unexpected repo count for analyzer b: %+v", got[1])
+	}
+}
+
+func TestBuildRepoTotalsDoesNotDeduplicateDifferentPackages(t *testing.T) {
+	diagA := Diagnostic{
+		RepoAbsPath: "/repo",
+		PackageID:   "example.com/repo/a",
+		Analyzer:    "a",
+		Posn:        "f.go:1:1",
+		End:         "f.go:1:2",
+		Message:     "m1",
+	}
+	diagB := Diagnostic{
+		RepoAbsPath: "/repo",
+		PackageID:   "example.com/repo/b",
+		Analyzer:    "a",
+		Posn:        "f.go:1:1",
+		End:         "f.go:1:2",
+		Message:     "m1",
+	}
+
+	got := BuildRepoCounts([]ModuleResult{
+		{Repo: "repo", Module: "m1", Diagnostics: []Diagnostic{diagA}},
+		{Repo: "repo", Module: "m2", Diagnostics: []Diagnostic{diagB}},
+	})
+
+	if len(got) != 1 {
+		t.Fatalf("unexpected count length: got=%d want=1", len(got))
+	}
+	if got[0].Diagnostics != 2 || got[0].DuplicatesRemoved != 0 {
+		t.Fatalf("unexpected repo count: %+v", got[0])
+	}
+}
+
+func TestBuildRepoTotalsDoesNotDeduplicateDifferentModules(t *testing.T) {
+	diag := Diagnostic{
+		RepoAbsPath: "/repo",
+		PackageID:   "example.com/repo/pkg",
+		Analyzer:    "a",
+		Posn:        "f.go:1:1",
+		End:         "f.go:1:2",
+		Message:     "m1",
+	}
+
+	got := BuildRepoCounts([]ModuleResult{
+		{Repo: "repo", Module: "m1", Diagnostics: []Diagnostic{diag}},
+		{Repo: "repo", Module: "m2", Diagnostics: []Diagnostic{diag}},
+	})
+
+	if len(got) != 1 {
+		t.Fatalf("unexpected count length: got=%d want=1", len(got))
+	}
+	if got[0].Diagnostics != 2 || got[0].DuplicatesRemoved != 0 {
+		t.Fatalf("unexpected repo count: %+v", got[0])
 	}
 }
 
@@ -110,7 +164,7 @@ func TestBuildTotalDeduplicatesAcrossRepos(t *testing.T) {
 	}
 	modules := []ModuleResult{
 		{Repo: "repo1", Module: "m1", Diagnostics: []Diagnostic{dup}},
-		{Repo: "repo1", Module: "m2", Diagnostics: []Diagnostic{dup, uniqB}},
+		{Repo: "repo1", Module: "m1", Diagnostics: []Diagnostic{dup, uniqB}},
 		{Repo: "repo2", Module: "m3", Diagnostics: []Diagnostic{uniqA}},
 	}
 
