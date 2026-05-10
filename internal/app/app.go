@@ -96,6 +96,9 @@ func Run(ctx context.Context, opts Options, deps Dependencies) RunResult {
 		go func() {
 			defer wg.Done()
 			for job := range jobCh {
+				if ctx.Err() != nil {
+					return
+				}
 				resultCh <- runModule(ctx, deps.Runner, job)
 			}
 		}()
