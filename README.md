@@ -2,7 +2,7 @@
 
 `gofixreport` runs `go fix -json ./...` for Go modules under target git repositories and reports analyzer counts.
 
-The first version requires a Go 1.26 or newer `go` command at runtime because it depends on `go fix -json`.
+`gofixreport` itself is a normal Go CLI, but the analyzed environment must provide a Go 1.26 or newer `go` command. Older Go versions do not support `go fix -json`.
 
 ## Usage
 
