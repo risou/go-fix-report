@@ -28,7 +28,7 @@ func WriteTable(w io.Writer, result report.Result) error {
 	}
 	for _, module := range result.Modules {
 		for _, c := range module.Counts {
-			if err := writef(tw, "%s\t%s\t%s\t%d\t%d\n", module.Repo, module.Module, c.Analyzer, c.Diagnostics, c.Fixable); err != nil {
+			if err := writef(tw, "%s\t%s\t%s\t%d\t%d\n", sanitizeCell(module.Repo), sanitizeCell(module.Module), sanitizeCell(c.Analyzer), c.Diagnostics, c.Fixable); err != nil {
 				return err
 			}
 		}
@@ -45,7 +45,7 @@ func WriteTable(w io.Writer, result report.Result) error {
 	}
 	for _, repo := range result.Repos {
 		for _, c := range repo.Counts {
-			if err := writef(tw, "%s\t%s\t%d\t%d\t%d\n", repo.Repo, c.Analyzer, c.Diagnostics, c.Fixable, c.DuplicatesRemoved); err != nil {
+			if err := writef(tw, "%s\t%s\t%d\t%d\t%d\n", sanitizeCell(repo.Repo), sanitizeCell(c.Analyzer), c.Diagnostics, c.Fixable, c.DuplicatesRemoved); err != nil {
 				return err
 			}
 		}
@@ -61,7 +61,7 @@ func WriteTable(w io.Writer, result report.Result) error {
 		return err
 	}
 	for _, c := range result.Total {
-		if err := writef(tw, "%s\t%d\t%d\t%d\n", c.Analyzer, c.Diagnostics, c.Fixable, c.DuplicatesRemoved); err != nil {
+		if err := writef(tw, "%s\t%d\t%d\t%d\n", sanitizeCell(c.Analyzer), c.Diagnostics, c.Fixable, c.DuplicatesRemoved); err != nil {
 			return err
 		}
 	}
@@ -77,7 +77,7 @@ func WriteTable(w io.Writer, result report.Result) error {
 			return err
 		}
 		for _, e := range result.Errors {
-			if err := writef(tw, "%s\t%s\t%s\t%s\t%s\n", e.Repo, e.Module, e.Command, strconv.Itoa(e.ExitCode), sanitizeCell(e.Stderr)); err != nil {
+			if err := writef(tw, "%s\t%s\t%s\t%s\t%s\n", sanitizeCell(e.Repo), sanitizeCell(e.Module), sanitizeCell(e.Command), strconv.Itoa(e.ExitCode), sanitizeCell(e.Stderr)); err != nil {
 				return err
 			}
 		}

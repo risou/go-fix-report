@@ -134,6 +134,55 @@ func TestWriteTableSanitizesErrorStderr(t *testing.T) {
 	}
 }
 
+func TestWriteTableSanitizesStringCells(t *testing.T) {
+	result := report.Result{
+		Modules: []report.ModuleResult{
+			{
+				Repo:   "repo\tname",
+				Module: "module\nname",
+				Counts: []report.Count{
+					{Analyzer: "analyzer\rname", Diagnostics: 1},
+				},
+			},
+		},
+		Repos: []report.RepoResult{
+			{
+				Repo: "repo\tname",
+				Counts: []report.Count{
+					{Analyzer: "analyzer\rname", Diagnostics: 1},
+				},
+			},
+		},
+		Total: []report.Count{
+			{Analyzer: "analyzer\rname", Diagnostics: 1},
+		},
+		Errors: []report.RunError{
+			{
+				Repo:     "repo\tname",
+				Module:   "module\nname",
+				Command:  "go\tfix\n-json",
+				ExitCode: 1,
+				Stderr:   "failed",
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := WriteTable(&buf, result); err != nil {
+		t.Fatalf("WriteTable returned error: %v", err)
+	}
+
+	got := buf.String()
+	if strings.Contains(got, "repo\tname") || strings.Contains(got, "module\nname") || strings.Contains(got, "analyzer\rname") || strings.Contains(got, "go\tfix\n-json") {
+		t.Fatalf("table output contains unsanitized cell:\n%s", got)
+	}
+	for _, want := range []string{"repo name", "module name", "analyzer name", "go fix -json"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("sanitized cell %q not found:\n%s", want, got)
+		}
+	}
+}
+
 type failWriter struct {
 	err error
 }
