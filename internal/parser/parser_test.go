@@ -123,6 +123,41 @@ func TestParseEmptyOutput(t *testing.T) {
 	}
 }
 
+func TestParseMultipleJSONObjects(t *testing.T) {
+	stdout := []byte(`{}
+{
+  "example.com/x": {
+    "any": [
+      {
+        "posn": "/tmp/x.go:3:10",
+        "end": "/tmp/x.go:3:21",
+        "message": "interface{} can be replaced by any",
+        "suggested_fixes": [
+          {
+            "message": "Replace interface{} by any",
+            "edits": [
+              {"filename":"/tmp/x.go","start":33,"end":44,"new":"any"}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+{}`)
+
+	result, err := Parse(stdout)
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if got := len(result.Diagnostics); got != 1 {
+		t.Fatalf("len(result.Diagnostics) = %d, want 1", got)
+	}
+	if got := result.Diagnostics[0].Analyzer; got != "any" {
+		t.Fatalf("result.Diagnostics[0].Analyzer = %q, want %q", got, "any")
+	}
+}
+
 func TestParseUnexpectedAnalyzerObjectShape(t *testing.T) {
 	stdout := []byte(`{
   "example.com/x": {

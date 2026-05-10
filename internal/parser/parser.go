@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 
 	"github.com/risou/go-fix-report/internal/report"
 )
@@ -17,12 +18,25 @@ func Parse(stdout []byte) (Result, error) {
 		return Result{}, nil
 	}
 
-	var packages map[string]map[string]json.RawMessage
-	if err := json.Unmarshal(stdout, &packages); err != nil {
-		return Result{}, err
+	var result Result
+	decoder := json.NewDecoder(bytes.NewReader(stdout))
+	for {
+		var packages map[string]map[string]json.RawMessage
+		if err := decoder.Decode(&packages); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return Result{}, err
+		}
+		if err := appendPackages(&result, packages); err != nil {
+			return Result{}, err
+		}
 	}
 
-	var result Result
+	return result, nil
+}
+
+func appendPackages(result *Result, packages map[string]map[string]json.RawMessage) error {
 	for packageID, analyzers := range packages {
 		for analyzer, raw := range analyzers {
 			var diagnostics []report.Diagnostic
@@ -48,9 +62,9 @@ func Parse(stdout []byte) (Result, error) {
 				continue
 			}
 
-			return Result{}, diagErr
+			return diagErr
 		}
 	}
 
-	return result, nil
+	return nil
 }
