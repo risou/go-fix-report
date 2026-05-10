@@ -4,6 +4,8 @@
 
 `gofixreport` itself is a normal Go CLI, but the analyzed environment must provide a Go 1.26 or newer `go` command. Older Go versions do not support `go fix -json`.
 
+Because `gofixreport` invokes the local `go` command inside target repositories, run it only against code repositories you trust.
+
 ## Usage
 
 ```bash
