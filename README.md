@@ -7,7 +7,9 @@
 ## Usage
 
 ```bash
-gofixreport [--json] [path]
+gofixreport [--json] [--jobs N] [path]
 ```
 
 By default, output is a human-readable table. Use `--json` for machine-readable output.
+
+By default, modules are processed sequentially. Use `--jobs N` to process up to `N` modules concurrently.

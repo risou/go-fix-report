@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/risou/go-fix-report/internal/app"
@@ -11,22 +12,16 @@ import (
 )
 
 func main() {
-	jsonOutput := flag.Bool("json", false, "emit machine-readable JSON output")
-	flag.Parse()
-
-	path := "."
-	if flag.NArg() > 1 {
-		fmt.Fprintln(os.Stderr, "usage: gofixreport [--json] [path]")
+	opts, jsonOutput, err := parseArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "usage: gofixreport [--json] [--jobs N] [path]")
 		os.Exit(2)
 	}
-	if flag.NArg() == 1 {
-		path = flag.Arg(0)
-	}
 
-	result := app.Run(context.Background(), app.Options{Path: path}, app.Dependencies{})
+	result := app.Run(context.Background(), opts, app.Dependencies{})
 
-	var err error
-	if *jsonOutput {
+	if jsonOutput {
 		err = output.WriteJSON(os.Stdout, result.Report)
 	} else {
 		err = output.WriteTable(os.Stdout, result.Report)
@@ -38,4 +33,30 @@ func main() {
 	if result.HadErrors {
 		os.Exit(1)
 	}
+}
+
+func parseArgs(args []string) (app.Options, bool, error) {
+	fs := flag.NewFlagSet("gofixreport", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	jsonOutput := fs.Bool("json", false, "emit machine-readable JSON output")
+	jobs := fs.Int("jobs", 1, "number of modules to process concurrently")
+	if err := fs.Parse(args); err != nil {
+		return app.Options{}, false, err
+	}
+	if fs.NArg() > 1 {
+		return app.Options{}, false, fmt.Errorf("too many arguments")
+	}
+	if *jobs < 1 {
+		return app.Options{}, false, fmt.Errorf("jobs must be greater than zero")
+	}
+
+	path := "."
+	if fs.NArg() == 1 {
+		path = fs.Arg(0)
+	}
+
+	return app.Options{
+		Path: path,
+		Jobs: *jobs,
+	}, *jsonOutput, nil
 }

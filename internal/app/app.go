@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"sort"
 	"sync"
 
@@ -22,6 +21,7 @@ type Dependencies struct {
 
 type Options struct {
 	Path string
+	Jobs int
 }
 
 type RunResult struct {
@@ -82,7 +82,7 @@ func Run(ctx context.Context, opts Options, deps Dependencies) RunResult {
 		}
 	}
 
-	workerCount := runtime.NumCPU()
+	workerCount := opts.Jobs
 	if workerCount < 1 {
 		workerCount = 1
 	}

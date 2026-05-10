@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/risou/go-fix-report/internal/module"
 	"github.com/risou/go-fix-report/internal/repo"
@@ -283,6 +284,56 @@ func TestRunContinuesAfterModuleDiscoveryFailure(t *testing.T) {
 	}
 }
 
+func TestRunDefaultsToSerialExecution(t *testing.T) {
+	executor := newBlockingExecutor()
+	done := make(chan RunResult, 1)
+	go func() {
+		done <- Run(context.Background(), Options{}, Dependencies{
+			DiscoverRepos: func(string) ([]repo.Repository, error) {
+				return []repo.Repository{{Root: "/repos/a", Name: "a"}}, nil
+			},
+			DiscoverModules: func(string) ([]module.Module, error) {
+				return []module.Module{
+					{Root: "/repos/a/m1", Display: "m1"},
+					{Root: "/repos/a/m2", Display: "m2"},
+				}, nil
+			},
+			Runner: runner.Runner{Executor: executor},
+		})
+	}()
+
+	waitForEntered(t, executor.entered)
+	assertNoAdditionalEntry(t, executor.entered)
+	close(executor.release)
+	<-done
+}
+
+func TestRunHonorsJobsLimit(t *testing.T) {
+	executor := newBlockingExecutor()
+	done := make(chan RunResult, 1)
+	go func() {
+		done <- Run(context.Background(), Options{Jobs: 2}, Dependencies{
+			DiscoverRepos: func(string) ([]repo.Repository, error) {
+				return []repo.Repository{{Root: "/repos/a", Name: "a"}}, nil
+			},
+			DiscoverModules: func(string) ([]module.Module, error) {
+				return []module.Module{
+					{Root: "/repos/a/m1", Display: "m1"},
+					{Root: "/repos/a/m2", Display: "m2"},
+					{Root: "/repos/a/m3", Display: "m3"},
+				}, nil
+			},
+			Runner: runner.Runner{Executor: executor},
+		})
+	}()
+
+	waitForEntered(t, executor.entered)
+	waitForEntered(t, executor.entered)
+	assertNoAdditionalEntry(t, executor.entered)
+	close(executor.release)
+	<-done
+}
+
 type fakeExecutor struct {
 	resultsByDir map[string]runner.Result
 }
@@ -295,4 +346,40 @@ func (f fakeExecutor) Run(_ context.Context, dir string, _ string, _ ...string) 
 		return result
 	}
 	return runner.Result{}
+}
+
+type blockingExecutor struct {
+	entered chan string
+	release chan struct{}
+}
+
+func newBlockingExecutor() *blockingExecutor {
+	return &blockingExecutor{
+		entered: make(chan string, 10),
+		release: make(chan struct{}),
+	}
+}
+
+func (e *blockingExecutor) Run(_ context.Context, dir string, _ string, _ ...string) runner.Result {
+	e.entered <- dir
+	<-e.release
+	return runner.Result{Stdout: []byte(`{}`)}
+}
+
+func waitForEntered(t *testing.T, entered <-chan string) {
+	t.Helper()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for module execution to start")
+	}
+}
+
+func assertNoAdditionalEntry(t *testing.T, entered <-chan string) {
+	t.Helper()
+	select {
+	case dir := <-entered:
+		t.Fatalf("unexpected additional module execution started: %s", dir)
+	case <-time.After(50 * time.Millisecond):
+	}
 }
