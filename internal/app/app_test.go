@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/risou/go-fix-report/internal/module"
@@ -157,6 +158,128 @@ func TestRunReturnsHadErrorsForExecutionFailure(t *testing.T) {
 	}
 	if got := result.Report.Errors[0].ExitCode; got != -1 {
 		t.Fatalf("result.Report.Errors[0].ExitCode = %d, want -1", got)
+	}
+}
+
+func TestRunRepoTotalsDoNotMergeSameBasenameRepos(t *testing.T) {
+	result := Run(context.Background(), Options{}, Dependencies{
+		DiscoverRepos: func(string) ([]repo.Repository, error) {
+			return []repo.Repository{
+				{Root: "/workspace/a/shared", Name: "shared"},
+				{Root: "/workspace/b/shared", Name: "shared"},
+			}, nil
+		},
+		DiscoverModules: func(repoRoot string) ([]module.Module, error) {
+			switch repoRoot {
+			case "/workspace/a/shared":
+				return []module.Module{{Root: repoRoot + "/m1", Display: "./m1"}}, nil
+			case "/workspace/b/shared":
+				return []module.Module{{Root: repoRoot + "/m1", Display: "./m1"}}, nil
+			default:
+				return nil, nil
+			}
+		},
+		Runner: runner.Runner{
+			Executor: fakeExecutor{
+				resultsByDir: map[string]runner.Result{
+					"/workspace/a/shared/m1": {Stdout: []byte(`{"pkg":{"printf":[{"posn":"a.go:1:1","end":"a.go:1:2","message":"a"}]}}`)},
+					"/workspace/b/shared/m1": {Stdout: []byte(`{"pkg":{"printf":[{"posn":"b.go:1:1","end":"b.go:1:2","message":"b"}]}}`)},
+				},
+			},
+		},
+	})
+
+	if got := len(result.Report.Repos); got != 2 {
+		t.Fatalf("len(result.Report.Repos) = %d, want 2", got)
+	}
+	for i, repoResult := range result.Report.Repos {
+		if got := repoResult.Repo; got != "shared" {
+			t.Fatalf("result.Report.Repos[%d].Repo = %q, want %q", i, got, "shared")
+		}
+		if got := len(repoResult.Counts); got != 1 {
+			t.Fatalf("len(result.Report.Repos[%d].Counts) = %d, want 1", i, got)
+		}
+		if got := repoResult.Counts[0].Diagnostics; got != 1 {
+			t.Fatalf("result.Report.Repos[%d].Counts[0].Diagnostics = %d, want 1", i, got)
+		}
+	}
+}
+
+func TestRunSortsErrorsDeterministicallyForSameRepoModule(t *testing.T) {
+	result := Run(context.Background(), Options{}, Dependencies{
+		DiscoverRepos: func(string) ([]repo.Repository, error) {
+			return []repo.Repository{{Root: "/repos/a", Name: "a"}}, nil
+		},
+		DiscoverModules: func(string) ([]module.Module, error) {
+			return []module.Module{{Root: "/repos/a/m1", Display: "./m1"}}, nil
+		},
+		Runner: runner.Runner{
+			Executor: fakeExecutor{
+				resultsByDir: map[string]runner.Result{
+					"/repos/a/m1": {
+						Stdout: []byte(`{"p":{"z":{"error":"zee"},"a":{"error":"ayy"}}}`),
+					},
+				},
+			},
+		},
+	})
+
+	if got := len(result.Report.Errors); got != 2 {
+		t.Fatalf("len(result.Report.Errors) = %d, want 2", got)
+	}
+	stderrs := []string{
+		result.Report.Errors[0].Stderr,
+		result.Report.Errors[1].Stderr,
+	}
+	want := []string{
+		"p (a): ayy",
+		"p (z): zee",
+	}
+	if !reflect.DeepEqual(stderrs, want) {
+		t.Fatalf("error order mismatch:\n got=%v\nwant=%v", stderrs, want)
+	}
+}
+
+func TestRunContinuesAfterModuleDiscoveryFailure(t *testing.T) {
+	result := Run(context.Background(), Options{}, Dependencies{
+		DiscoverRepos: func(string) ([]repo.Repository, error) {
+			return []repo.Repository{
+				{Root: "/repos/fail", Name: "fail"},
+				{Root: "/repos/ok", Name: "ok"},
+			}, nil
+		},
+		DiscoverModules: func(repoRoot string) ([]module.Module, error) {
+			if repoRoot == "/repos/fail" {
+				return nil, errors.New("discover failed")
+			}
+			if repoRoot == "/repos/ok" {
+				return []module.Module{{Root: "/repos/ok/m1", Display: "./m1"}}, nil
+			}
+			return nil, nil
+		},
+		Runner: runner.Runner{
+			Executor: fakeExecutor{
+				resultsByDir: map[string]runner.Result{
+					"/repos/ok/m1": {Stdout: []byte(`{"pkg":{"printf":[{"posn":"ok.go:1:1","end":"ok.go:1:2","message":"ok"}]}}`)},
+				},
+			},
+		},
+	})
+
+	if !result.HadErrors {
+		t.Fatal("result.HadErrors = false, want true")
+	}
+	if got := len(result.Report.Modules); got != 1 {
+		t.Fatalf("len(result.Report.Modules) = %d, want 1", got)
+	}
+	if got := result.Report.Modules[0].Repo; got != "ok" {
+		t.Fatalf("result.Report.Modules[0].Repo = %q, want %q", got, "ok")
+	}
+	if got := len(result.Report.Errors); got != 1 {
+		t.Fatalf("len(result.Report.Errors) = %d, want 1", got)
+	}
+	if got := result.Report.Errors[0].Repo; got != "fail" {
+		t.Fatalf("result.Report.Errors[0].Repo = %q, want %q", got, "fail")
 	}
 }
 

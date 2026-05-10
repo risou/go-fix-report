@@ -37,6 +37,7 @@ type moduleJob struct {
 type jobOutcome struct {
 	moduleResult *report.ModuleResult
 	runErrors    []report.RunError
+	repoRoot     string
 }
 
 func Run(ctx context.Context, opts Options, deps Dependencies) RunResult {
@@ -64,15 +65,17 @@ func Run(ctx context.Context, opts Options, deps Dependencies) RunResult {
 	}
 
 	jobs := make([]moduleJob, 0)
+	discoveryErrors := make([]report.RunError, 0)
 	for _, r := range repos {
 		modules, discoverErr := discoverModules(r.Root)
 		if discoverErr != nil {
-			return withSingleError(report.RunError{
+			discoveryErrors = append(discoveryErrors, report.RunError{
 				Repo:     r.Name,
 				Command:  runner.CommandString(),
 				ExitCode: -1,
 				Stderr:   discoverErr.Error(),
 			})
+			continue
 		}
 		for _, m := range modules {
 			jobs = append(jobs, moduleJob{repo: r, module: m})
@@ -108,11 +111,14 @@ func Run(ctx context.Context, opts Options, deps Dependencies) RunResult {
 	}()
 
 	result := report.Result{}
+	result.Errors = append(result.Errors, discoveryErrors...)
 	repoModules := map[string][]report.ModuleResult{}
+	repoNames := map[string]string{}
 	for outcome := range resultCh {
 		if outcome.moduleResult != nil {
 			result.Modules = append(result.Modules, *outcome.moduleResult)
-			repoModules[outcome.moduleResult.Repo] = append(repoModules[outcome.moduleResult.Repo], *outcome.moduleResult)
+			repoModules[outcome.repoRoot] = append(repoModules[outcome.repoRoot], *outcome.moduleResult)
+			repoNames[outcome.repoRoot] = outcome.moduleResult.Repo
 		}
 		if len(outcome.runErrors) > 0 {
 			result.Errors = append(result.Errors, outcome.runErrors...)
@@ -127,21 +133,30 @@ func Run(ctx context.Context, opts Options, deps Dependencies) RunResult {
 	})
 	sort.Slice(result.Errors, func(i, j int) bool {
 		if result.Errors[i].Repo == result.Errors[j].Repo {
+			if result.Errors[i].Module == result.Errors[j].Module {
+				if result.Errors[i].Command == result.Errors[j].Command {
+					if result.Errors[i].ExitCode == result.Errors[j].ExitCode {
+						return result.Errors[i].Stderr < result.Errors[j].Stderr
+					}
+					return result.Errors[i].ExitCode < result.Errors[j].ExitCode
+				}
+				return result.Errors[i].Command < result.Errors[j].Command
+			}
 			return result.Errors[i].Module < result.Errors[j].Module
 		}
 		return result.Errors[i].Repo < result.Errors[j].Repo
 	})
 
-	repoNames := make([]string, 0, len(repoModules))
-	for repoName := range repoModules {
-		repoNames = append(repoNames, repoName)
+	repoRoots := make([]string, 0, len(repoModules))
+	for repoRoot := range repoModules {
+		repoRoots = append(repoRoots, repoRoot)
 	}
-	sort.Strings(repoNames)
+	sort.Strings(repoRoots)
 
-	for _, repoName := range repoNames {
+	for _, repoRoot := range repoRoots {
 		result.Repos = append(result.Repos, report.RepoResult{
-			Repo:   repoName,
-			Counts: report.BuildRepoCounts(repoModules[repoName]),
+			Repo:   repoNames[repoRoot],
+			Counts: report.BuildRepoCounts(repoModules[repoRoot]),
 		})
 	}
 	result.Total = report.BuildTotalCounts(result.Modules)
@@ -156,6 +171,7 @@ func runModule(ctx context.Context, r runner.Runner, job moduleJob) jobOutcome {
 	runResult := r.RunFixJSON(ctx, job.module.Root)
 	if runResult.Err != nil {
 		return jobOutcome{
+			repoRoot: job.repo.Root,
 			runErrors: []report.RunError{
 				{
 					Repo:     job.repo.Name,
@@ -171,6 +187,7 @@ func runModule(ctx context.Context, r runner.Runner, job moduleJob) jobOutcome {
 	parsed, err := parser.Parse(runResult.Stdout)
 	if err != nil {
 		return jobOutcome{
+			repoRoot: job.repo.Root,
 			runErrors: []report.RunError{
 				{
 					Repo:     job.repo.Name,
@@ -188,6 +205,7 @@ func runModule(ctx context.Context, r runner.Runner, job moduleJob) jobOutcome {
 	}
 
 	outcome := jobOutcome{
+		repoRoot: job.repo.Root,
 		moduleResult: &report.ModuleResult{
 			Repo:        job.repo.Name,
 			Module:      job.module.Display,
