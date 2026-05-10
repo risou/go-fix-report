@@ -334,6 +334,31 @@ func TestRunHonorsJobsLimit(t *testing.T) {
 	<-done
 }
 
+func TestRunStopsSchedulingJobsWhenContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	executor := newCancelingExecutor(cancel)
+
+	result := Run(ctx, Options{Jobs: 1}, Dependencies{
+		DiscoverRepos: func(string) ([]repo.Repository, error) {
+			return []repo.Repository{{Root: "/repos/a", Name: "a"}}, nil
+		},
+		DiscoverModules: func(string) ([]module.Module, error) {
+			return []module.Module{
+				{Root: "/repos/a/m1", Display: "m1"},
+				{Root: "/repos/a/m2", Display: "m2"},
+			}, nil
+		},
+		Runner: runner.Runner{Executor: executor},
+	})
+
+	if result.HadErrors {
+		t.Fatalf("result.HadErrors = true, errors=%v", result.Report.Errors)
+	}
+	if got := executor.calls; got != 1 {
+		t.Fatalf("executor.calls = %d, want 1", got)
+	}
+}
+
 type fakeExecutor struct {
 	resultsByDir map[string]runner.Result
 }
@@ -382,4 +407,19 @@ func assertNoAdditionalEntry(t *testing.T, entered <-chan string) {
 		t.Fatalf("unexpected additional module execution started: %s", dir)
 	case <-time.After(50 * time.Millisecond):
 	}
+}
+
+type cancelingExecutor struct {
+	cancel context.CancelFunc
+	calls  int
+}
+
+func newCancelingExecutor(cancel context.CancelFunc) *cancelingExecutor {
+	return &cancelingExecutor{cancel: cancel}
+}
+
+func (e *cancelingExecutor) Run(_ context.Context, _ string, _ string, _ ...string) runner.Result {
+	e.calls++
+	e.cancel()
+	return runner.Result{Stdout: []byte(`{}`)}
 }

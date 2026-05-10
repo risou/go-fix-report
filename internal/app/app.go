@@ -103,7 +103,14 @@ func Run(ctx context.Context, opts Options, deps Dependencies) RunResult {
 
 	go func() {
 		for _, job := range jobs {
-			jobCh <- job
+			select {
+			case <-ctx.Done():
+				close(jobCh)
+				wg.Wait()
+				close(resultCh)
+				return
+			case jobCh <- job:
+			}
 		}
 		close(jobCh)
 		wg.Wait()
