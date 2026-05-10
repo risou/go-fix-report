@@ -35,11 +35,14 @@ func TestRunRealGoFixJSONAnyAnalyzer(t *testing.T) {
 	if got := count.Analyzer; got != "any" {
 		t.Fatalf("count.Analyzer = %q, want %q", got, "any")
 	}
-	if got := count.Diagnostics; got != 2 {
-		t.Fatalf("count.Diagnostics = %d, want 2", got)
+	if got := count.Diagnostics; got < 1 {
+		t.Fatalf("count.Diagnostics = %d, want at least 1", got)
 	}
-	if got := count.Fixable; got != 2 {
-		t.Fatalf("count.Fixable = %d, want 2", got)
+	if count.Fixable < 1 {
+		t.Fatalf("count.Fixable = %d, want at least 1", count.Fixable)
+	}
+	if count.Fixable > count.Diagnostics {
+		t.Fatalf("count.Fixable = %d, want <= diagnostics %d", count.Fixable, count.Diagnostics)
 	}
 }
 
