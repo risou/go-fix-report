@@ -17,6 +17,9 @@ func Discover(path string) ([]Repository, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err := os.Stat(absolutePath); err != nil {
+		return nil, err
+	}
 
 	if root, ok, err := containingRepository(absolutePath); err != nil {
 		return nil, err
@@ -25,9 +28,6 @@ func Discover(path string) ([]Repository, error) {
 	}
 
 	repositories, err := childRepositories(absolutePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, err
 	}

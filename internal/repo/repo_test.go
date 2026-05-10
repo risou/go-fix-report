@@ -48,6 +48,19 @@ func TestDiscoverOutsideRepoFindsChildRepos(t *testing.T) {
 	})
 }
 
+func TestDiscoverNonexistentPathReturnsError(t *testing.T) {
+	root := t.TempDir()
+	missing := filepath.Join(root, "missing")
+
+	repositories, err := Discover(missing)
+	if err == nil {
+		t.Fatal("Discover() error = nil, want non-nil")
+	}
+	if repositories != nil {
+		t.Fatalf("repositories = %#v, want nil", repositories)
+	}
+}
+
 func TestDiscoverOutsideRepoFindsChildRepoWithGitFile(t *testing.T) {
 	base := t.TempDir()
 	repoRoot := filepath.Join(base, "worktree")
